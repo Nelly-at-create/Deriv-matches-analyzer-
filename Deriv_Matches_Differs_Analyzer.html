@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deriv Matches & Differs Analyzer</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d30;--line:#263650;--muted:#9fb0c8;--text:#eef4ff;--green:#24d18b;--red:#ff6878;--blue:#70a7ff;--gold:#ffd166}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,Segoe UI,Arial}
+main{max-width:1050px;margin:auto;padding:18px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:23px;margin:0}h2{font-size:16px;margin:0 0 12px}.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-top:14px}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+input,select,button{width:100%;border-radius:9px;border:1px solid var(--line);background:#0c1728;color:var(--text);padding:11px;font:inherit}
+button{background:#2359a8;border:0;font-weight:700;cursor:pointer}button.secondary{background:#263650}button:disabled{opacity:.5}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}.dot{width:9px;height:9px;border-radius:50%;background:#75849a}.dot.on{background:var(--green);box-shadow:0 0 10px var(--green)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.metric{background:#0c1728;border:1px solid var(--line);border-radius:11px;padding:12px}.metric small{color:var(--muted)}.metric strong{display:block;font-size:21px;margin-top:5px}
+.digits{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.digit{background:#0c1728;border:1px solid var(--line);border-radius:9px;text-align:center;padding:9px 2px}.digit b{display:block;font-size:18px}.digit small{color:var(--muted);font-size:11px}.bar{height:5px;background:#263650;border-radius:8px;margin-top:7px;overflow:hidden}.bar i{display:block;height:100%;background:var(--blue)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.signal{border-radius:10px;padding:13px;background:#0c1728;border:1px solid var(--line)}.signal strong{font-size:22px;display:block}.green{color:var(--green)}.red{color:var(--red)}.gold{color:var(--gold)}
+.ticks{display:flex;gap:6px;flex-wrap:wrap}.tick{background:#0c1728;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-weight:700}.tick.latest{border-color:var(--gold);color:var(--gold)}
+.note{font-size:12px;color:var(--muted);line-height:1.5}.error{color:var(--red);font-size:13px;white-space:pre-wrap}
+@media(max-width:560px){main{padding:12px}.digits{gap:3px}.digit{padding:7px 0}.digit b{font-size:15px}.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main>
+<div class="top"><div><h1>Matches & Differs Analyzer</h1><div class="sub">Live market data · digit statistics · alert conditions · no trading access</div></div><div class="status"><i id="dot" class="dot"></i><span id="status">Not connected</span></div></div>
+<section class="panel"><h2>Connection & settings</h2><div class="controls">
+<div><label>Market</label><select id="symbol"><option value="R_100">Volatility 100 Index</option><option value="R_75">Volatility 75 Index</option><option value="R_50">Volatility 50 Index</option><option value="R_25">Volatility 25 Index</option><option value="R_10">Volatility 10 Index</option><option value="1HZ100V">Volatility 100 (1s) Index</option><option value="1HZ75V">Volatility 75 (1s) Index</option><option value="1HZ50V">Volatility 50 (1s) Index</option><option value="1HZ25V">Volatility 25 (1s) Index</option><option value="1HZ10V">Volatility 10 (1s) Index</option></select></div>
+<div><label>Analysis window</label><select id="window"><option>100</option><option selected>500</option><option>1000</option></select></div>
+<div><label>Target digit (Matches)</label><select id="target"></select></div>
+<div><label>Alert threshold (%)</label><input id="threshold" type="number" min="1" max="99" value="15"></div>
+<div><label>Deriv App ID</label><input id="appid" value="1089" inputmode="numeric"></div>
+<div style="display:flex;align-items:end"><button id="connect">Connect live data</button></div>
+</div><p class="note">App ID 1089 is a public testing ID. You can use it to test the feed; for a permanent app, register your own Deriv application. This analyzer does not ask for your password, email code, API token or account login.</p><div id="error" class="error"></div></section>
+<section class="panel"><h2>Live market snapshot</h2><div class="metrics">
+<div class="metric"><small>Latest quote</small><strong id="quote">—</strong></div><div class="metric"><small>Last digit</small><strong id="lastdigit">—</strong></div><div class="metric"><small>Ticks collected</small><strong id="count">0</strong></div><div class="metric"><small>Market</small><strong id="marketname" style="font-size:15px">Volatility 100</strong></div>
+</div></section>
+<section class="panel"><h2>Digit frequency · selected window</h2><div id="digits" class="digits"></div><p class="note" id="windowinfo">Waiting for ticks…</p></section>
+<section class="panel"><h2>Matches & Differs · empirical frequency</h2><div class="split">
+<div class="signal"><small class="muted">MATCHES selected digit <b id="targetlabel">0</b></small><strong id="matchrate">—</strong><span class="note">Observed share of ticks ending in the selected digit</span></div>
+<div class="signal"><small>DIFFERS selected digit <b id="targetlabel2">0</b></small><strong id="differrate">—</strong><span class="note">Observed share of ticks ending in any other digit</span></div>
+</div><p class="note">These are historical sample frequencies, not forecasts or guaranteed win probabilities. Digit frequencies can fluctuate; a “hot” or “cold” digit does not mean it is due to appear.</p></section>
+<section class="panel"><h2>Recent last digits</h2><div id="recent" class="ticks"><span class="note">Waiting for live ticks…</span></div></section>
+<section class="panel"><h2>Alert monitor</h2><div id="alert" class="note">Connect to start monitoring. An alert triggers when the selected digit's observed frequency reaches the threshold and the analysis window is full.</div><div class="controls" style="margin-top:10px"><div><label>Sound alerts</label><select id="sound"><option value="yes">On</option><option value="no">Off</option></select></div><div><label>Monitoring</label><select id="monitor"><option value="on">On</option><option value="off">Off</option></select></div></div></section>
+<p class="note">Educational analysis only. This tool does not place trades and cannot determine the next tick. Use demo trading and risk limits; never trade based only on a frequency reading.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+for(let i=0;i<10;i++) $('target').add(new Option(String(i),String(i)));
+let ws=null,pingTimer=null,history=[],digits=[],lastAlert=false,connected=false;
+const names={R_100:'Volatility 100 Index',R_75:'Volatility 75 Index',R_50:'Volatility 50 Index',R_25:'Volatility 25 Index',R_10:'Volatility 10 Index','1HZ100V':'Volatility 100 (1s) Index','1HZ75V':'Volatility 75 (1s) Index','1HZ50V':'Volatility 50 (1s) Index','1HZ25V':'Volatility 25 (1s) Index','1HZ10V':'Volatility 10 (1s) Index'};
+function status(s,on=false){$('status').textContent=s;$('dot').className='dot'+(on?' on':'');}
+function stop(){if(pingTimer)clearInterval(pingTimer);pingTimer=null;if(ws){try{ws.close()}catch(e){}ws=null}connected=false;status('Not connected');}
+function connect(){
+ stop();history=[];digits=[];render();$('error').textContent='';$('quote').textContent='—';$('lastdigit').textContent='—';$('count').textContent='0';
+ const appid=$('appid').value.trim();if(!/^\d+$/.test(appid)){ $('error').textContent='Enter a numeric Deriv App ID.';return;}
+ const symbol=$('symbol').value;status('Connecting…');
+ try{ws=new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(appid)}`);}
+ catch(e){$('error').textContent='Could not create connection: '+e.message;status('Connection failed');return;}
+ ws.onopen=()=>{connected=true;status('Connected · subscribing',true);ws.send(JSON.stringify({ticks:symbol,subscribe:1}));ws.send(JSON.stringify({ping:1}));pingTimer=setInterval(()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({ping:1}))},25000);};
+ ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}
+  if(m.error){$('error').textContent=m.error.message||'Deriv API error';status('API error');return;}
+  if(m.msg_type==='tick'&&m.tick){const t=m.tick;const q=String(t.quote);const precision=Number.isInteger(t.pip_size)?t.pip_size:(q.includes('.')?q.split('.')[1].length:0);const decimals=q.includes('.')?q.split('.')[1]:'';const d=Number((decimals.padEnd(precision,'0').slice(-1)||'0'));history.push({quote:q,digit:d,time:t.epoch});if(history.length>5000)history.shift();digits.push(d);if(digits.length>5000)digits.shift();$('quote').textContent=q;$('lastdigit').textContent=d;$('count').textContent=history.length;render();}
+ };
+ ws.onerror=()=>{$('error').textContent='WebSocket error. Check internet, App ID and whether your network allows secure WebSocket connections.';status('Connection error');};
+ ws.onclose=e=>{if(pingTimer)clearInterval(pingTimer);pingTimer=null;connected=false;status('Disconnected');if(e.code&&e.code!==1000)$('error').textContent='Connection closed (code '+e.code+'). Tap Connect to try again.';};
+}
+function render(){
+ const n=Number($('window').value),sample=digits.slice(-n),counts=Array(10).fill(0);sample.forEach(d=>counts[d]++);
+ const max=Math.max(1,...counts),total=sample.length;
+ $('digits').innerHTML=counts.map((c,i)=>`<div class="digit"><b>${i}</b><small>${total?(c/total*100).toFixed(1):'0.0'}%</small><div class="bar"><i style="width:${c/max*100}%"></i></div><small>${c} ticks</small></div>`).join('');
+ $('windowinfo').textContent=`${total} of ${n} requested ticks in this sample. ${total<n?'Collecting more ticks…':'Analysis window full.'}`;
+ const target=Number($('target').value||0),rate=total?counts[target]/total*100:0;
+ $('targetlabel').textContent=target;$('targetlabel2').textContent=target;
+ $('matchrate').textContent=total?rate.toFixed(2)+'%':'—';$('differrate').textContent=total?(100-rate).toFixed(2)+'%':'—';
+ $('matchrate').className=rate>=Number($('threshold').value)?'green':'';
+ $('differrate').className='';
+ $('recent').innerHTML=digits.slice(-30).reverse().map((d,i)=>`<span class="tick ${i===0?'latest':''}">${d}</span>`).join('')||'<span class="note">Waiting for live ticks…</span>';
+ $('marketname').textContent=names[$('symbol').value]||$('symbol').value;
+ const alertOn=total===n&&rate>=Number($('threshold').value)&&$('monitor').value==='on';
+ const msg=total<n?'Collecting data before alerts are enabled.':alertOn?`Selected digit ${target} is at ${rate.toFixed(2)}% in the last ${n} ticks (threshold ${$('threshold').value}%). This is a statistical alert, not a trade recommendation.`:`No alert: digit ${target} is at ${rate.toFixed(2)}% (threshold ${$('threshold').value}%).`;
+ $('alert').textContent=msg;$('alert').className=alertOn?'gold':'note';
+ if(alertOn&&!lastAlert&&$('sound').value==='yes')beep();lastAlert=alertOn;
+}
+function beep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=new C(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(c.currentTime+.18);o.onended=()=>c.close();}catch(e){}}
+$('connect').addEventListener('click',connect);
+['window','target','threshold','sound','monitor','symbol'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='symbol'&&connected){connect();return;}lastAlert=false;render();}));
+window.addEventListener('beforeunload',stop);
+render();
+</script></body></html>
